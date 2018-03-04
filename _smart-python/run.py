@@ -199,6 +199,32 @@ def ranger_logic(unit):
 
 
 def healer_logic(unit):
+
+    if unit.location.is_in_garrison() or unit.location.is_in_space():
+        return
+
+    teamates = [i for i in gc.sense_nearby_units(unit.location.map_location(),
+                                                           unit.attack_range()) if i.team == my_team]
+
+    for mate in teamates:
+        if mate.health < mate.max_health - 10 and gc.is_heal_ready(unit.id):
+            gc.heal(unit.id, mate.id)
+            return
+
+    out_of_range_teamates = [i for i in gc.sense_nearby_units(unit.location.map_location(),
+                                                 unit.attack_range()) if i.team == my_team]
+    if gc.is_move_ready(unit.id):
+        closest = np.argmin([distance(unit, i)
+                             for i in out_of_range_teamates])
+
+        direction = unit.location.map_location.direction_to(out_of_range_teamates[closest])
+
+        ## zatim vzdusnou carou
+        if gc.is_move_ready(unit.id) and gc.can_move(unit.id, direction):
+            gc.move_robot(unit.id, direction)
+
+        if len(out_of_range_teamates) == 0:
+            random_roam(unit)
     return
 
 def combat_logic(unit):
@@ -208,7 +234,6 @@ def combat_logic(unit):
             return
 
     try_moving(unit)
-
 
 def try_moving(unit):
     if gc.is_move_ready(unit.id):
