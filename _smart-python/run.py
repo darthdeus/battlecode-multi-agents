@@ -2,6 +2,7 @@ import battlecode as bc
 import random
 import sys
 import traceback
+import numpy as np
 import time
 # from itertools import filter
 
@@ -13,7 +14,11 @@ print("pystarting")
 # A GameController is the main type that you talk to the game with.
 # Its constructor will connect to a running game.
 gc = bc.GameController()
-directions = list(bc.Direction)
+
+directions = [bc.Direction.North, bc.Direction.Northeast, bc.Direction.East, bc.Direction.Southeast, bc.Direction.South,
+              bc.Direction.Southwest, bc.Direction.West, bc.Direction.Northwest]
+
+#directions = list(bc.Direction) #tohle je pry divne orientovany a obsahuje to i center
 
 print("pystarted")
 
@@ -135,9 +140,66 @@ def worker_logic(unit):
         gc.harvest(unit.id, available_dir)
         return
 
-
     try_moving(unit)
 
+
+def distance(unit_a, unit_b):
+    return unit_a.location.map_location().distance_squared_to(unit_b.location.map_location())
+
+
+def random_roam(unit):
+    d = random.choice(directions)
+    if gc.is_move_ready(unit.id) and gc.can_move(unit.id, d):
+        gc.move_robot(unit.id, d)
+    return
+
+
+def ranger_logic(unit):
+
+    if unit.location.is_in_garrison() or unit.location.is_in_space():
+        return
+
+    attackable_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(),
+                                   unit.attack_range()) if i.team != my_team]
+
+    visible_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(),
+                                   unit.vision_range()) if i.team != my_team]
+
+    if len(attackable_enemies) > 0:
+        if gc.is_attack_ready(unit):
+
+            # Try attack the closest, but not closer than 10
+            adepts = np.argsort([distance(unit.id, i.id) for i in attackable_enemies if distance(unit, i) > 10])
+            for adept in adepts:
+                if gc.can_attack(unit.id, adept.id):
+                    gc.attack(unit.id, adept.id)
+                    break
+
+            # Every enemy is too close, so I cannot attack anything!
+            if len(adepts) == 0:
+                possibilities = gc.all_locations_within(unit.location.map_location, radius_squared=1)
+                evaluation = [i.distance_squared_to(adepts[-1]) for i in possibilities]
+                best_direction = unit.location.map_location.direction_to(possibilities[np.argmax[evaluation]])
+                if gc.is_move_ready(unit.id) and gc.can_move(unit.id, best_direction):
+                    gc.move_robot(unit.id, best_direction)
+        return
+
+    elif len(visible_enemies) > 0:
+        closest = np.argmin([distance(unit, i)
+                               for i in visible_enemies])
+        ### Az bude search s distance heuristikou, tak zlepsit. Nyni asi jen vzdusnou carou ###
+        direction = unit.location.map_location.direction_to(visible_enemies[closest])
+        if gc.is_move_ready(unit.id) and gc.can_move(unit.id, direction):
+            gc.move_robot(unit.id, direction)
+        return
+
+    else:
+        random_roam(unit)
+        return
+
+
+def healer_logic(unit):
+    return
 
 def combat_logic(unit):
     for other in gc.sense_nearby_units(unit.location.map_location(), 2):
@@ -172,7 +234,7 @@ unit_type_callbacks = {
     bc.UnitType.Rocket: wrap_on_map_only(rocket_logic),
     bc.UnitType.Worker: wrap_on_map_only(worker_logic),
     bc.UnitType.Knight: wrap_on_map_only(combat_logic),
-    bc.UnitType.Ranger: wrap_on_map_only(combat_logic),
+    bc.UnitType.Ranger: wrap_on_map_only(ranger_logic),
     bc.UnitType.Mage:   wrap_on_map_only(combat_logic),
     bc.UnitType.Healer: wrap_on_map_only(combat_logic),
 }
