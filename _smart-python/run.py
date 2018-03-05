@@ -29,21 +29,25 @@ random.seed(1993)
 
 # let's start off with some research!
 # we can queue as much as we want.
-gc.queue_research(bc.UnitType.Worker)
-gc.queue_research(bc.UnitType.Rocket)
-gc.queue_research(bc.UnitType.Worker)
-gc.queue_research(bc.UnitType.Rocket)
-gc.queue_research(bc.UnitType.Rocket)
+gc.queue_research(bc.UnitType.Worker) # 25  // 25
+gc.queue_research(bc.UnitType.Rocket) # 50  // 75
+gc.queue_research(bc.UnitType.Ranger) # 25  // 100
+gc.queue_research(bc.UnitType.Knight) # 25  // 125
+gc.queue_research(bc.UnitType.Knight) # 25  // 200
+gc.queue_research(bc.UnitType.Mage)   # 25  // 225
+gc.queue_research(bc.UnitType.Mage)   # 75  // 300
+gc.queue_research(bc.UnitType.Mage)   # 100 // 400
+gc.queue_research(bc.UnitType.Knight) # 100 // 500 // Javelin
+gc.queue_research(bc.UnitType.Rocket) # 100 // 600 // Faster travel time
+gc.queue_research(bc.UnitType.Mage)   # 75  // 675 // Blink ale asi bude zabugovanej
+
+# zbytek asi useless
 gc.queue_research(bc.UnitType.Knight)
 gc.queue_research(bc.UnitType.Ranger)
-gc.queue_research(bc.UnitType.Mage)
+gc.queue_research(bc.UnitType.Healer)
+gc.queue_research(bc.UnitType.Ranger)
 gc.queue_research(bc.UnitType.Healer)
 gc.queue_research(bc.UnitType.Knight)
-gc.queue_research(bc.UnitType.Ranger)
-gc.queue_research(bc.UnitType.Mage)
-gc.queue_research(bc.UnitType.Healer)
-gc.queue_research(bc.UnitType.Knight)
-gc.queue_research(bc.UnitType.Ranger)
 gc.queue_research(bc.UnitType.Mage)
 gc.queue_research(bc.UnitType.Healer)
 
@@ -154,6 +158,41 @@ def random_roam(unit):
     return
 
 
+def mage_logic(unit):
+    if unit.location.is_in_garrison() or unit.location.is_in_space():
+        return
+
+    attackable_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(),
+                                   unit.attack_range()) if i.team != my_team]
+
+    visible_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(),
+                                   unit.vision_range()) if i.team != my_team]
+
+    if len(attackable_enemies) > 0:
+        if gc.is_attack_ready(unit):
+
+            adepts = adepts = np.argsort([i.health for i in attackable_enemies if distance(unit, i) > 10])
+            for adept in list(adepts):
+                if gc.can_attack(unit.id, adept.id):
+                    gc.attack(unit.id, adept.id)
+                    break
+        return
+
+    elif len(visible_enemies) > 0:
+        closest = np.argmin([distance(unit, i)
+                               for i in visible_enemies])
+
+
+        direction = unit.location.map_location.direction_to(visible_enemies[closest])
+        if gc.is_move_ready(unit.id) and gc.can_move(unit.id, direction):
+            gc.move_robot(unit.id, direction)
+        return
+
+    else:
+        random_roam(unit)
+        return
+
+
 def ranger_logic(unit):
 
     if unit.location.is_in_garrison() or unit.location.is_in_space():
@@ -169,8 +208,8 @@ def ranger_logic(unit):
         if gc.is_attack_ready(unit):
 
             # Try attack the closest, but not closer than 10
-            adepts = np.argsort([distance(unit.id, i.id) for i in attackable_enemies if distance(unit, i) > 10])
-            for adept in adepts:
+            adepts = np.argsort([distance(unit, i) for i in attackable_enemies if distance(unit, i) > 10])
+            for adept in list(adepts):
                 if gc.can_attack(unit.id, adept.id):
                     gc.attack(unit.id, adept.id)
                     break
@@ -179,7 +218,7 @@ def ranger_logic(unit):
             if len(adepts) == 0:
                 possibilities = gc.all_locations_within(unit.location.map_location, radius_squared=1)
                 evaluation = [i.distance_squared_to(adepts[-1]) for i in possibilities]
-                best_direction = unit.location.map_location.direction_to(possibilities[np.argmax[evaluation]])
+                best_direction = unit.location.map_location.direction_to(possibilities[int(np.argmax([evaluation]))])
                 if gc.is_move_ready(unit.id) and gc.can_move(unit.id, best_direction):
                     gc.move_robot(unit.id, best_direction)
         return
@@ -196,6 +235,43 @@ def ranger_logic(unit):
     else:
         random_roam(unit)
         return
+
+def knight_logic(unit):
+
+    if unit.location.is_in_garrison() or unit.location.is_in_space():
+        return
+
+    attackable_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(),
+                                                           unit.attack_range()) if i.team != my_team]
+
+    visible_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(),
+                                                        unit.vision_range()) if i.team != my_team]
+
+    if len(attackable_enemies) > 0:
+        if gc.is_attack_ready(unit):
+
+            # Attack one with lowest health pool to lower incoming dmg
+            adepts = np.argsort([i.health for i in attackable_enemies if distance(unit, i) > 10])
+            for adept in list(adepts):
+                if gc.can_attack(unit.id, adept.id):
+                    gc.attack(unit.id, adept.id)
+                    break
+        return
+
+    elif len(visible_enemies) > 0:
+        closest = np.argmin([distance(unit, i) for i in visible_enemies])
+
+        direction = unit.location.map_location.direction_to(visible_enemies[closest])
+
+        if gc.can_javelin(unit.id, visible_enemies[closest].id) and gc.is_javelin_ready(unit.id):
+            gc.javelin(unit.id, visible_enemies[closest].id)
+
+        if gc.is_move_ready(unit.id) and gc.can_move(unit.id, direction):
+            gc.move_robot(unit.id, direction)
+        return
+    return
+
+
 
 
 def healer_logic(unit):
@@ -226,6 +302,7 @@ def healer_logic(unit):
         if len(out_of_range_teamates) == 0:
             random_roam(unit)
     return
+
 
 def combat_logic(unit):
     for other in gc.sense_nearby_units(unit.location.map_location(), 2):
@@ -258,10 +335,10 @@ unit_type_callbacks = {
     bc.UnitType.Factory: factory_logic,
     bc.UnitType.Rocket: wrap_on_map_only(rocket_logic),
     bc.UnitType.Worker: wrap_on_map_only(worker_logic),
-    bc.UnitType.Knight: wrap_on_map_only(combat_logic),
+    bc.UnitType.Knight: wrap_on_map_only(knight_logic),
     bc.UnitType.Ranger: wrap_on_map_only(ranger_logic),
-    bc.UnitType.Mage:   wrap_on_map_only(combat_logic),
-    bc.UnitType.Healer: wrap_on_map_only(combat_logic),
+    bc.UnitType.Mage:   wrap_on_map_only(mage_logic),
+    bc.UnitType.Healer: wrap_on_map_only(healer_logic),
 }
 
 while True:
