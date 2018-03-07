@@ -126,9 +126,6 @@ def rocket_logic(unit):
                         gc.launch_rocket(unit.id, mars_location)
                         return
 
-            # marsLocation = bc.MapLocation(bc.Planet.Mars, random.randint(0, 20), random.randint(0, 20))
-            # if gc.can_launch_rocket(unit.id, marsLocation):
-            #     gc.launch_rocket(unit.id, marsLocation)
         else:
             for robot in gc.my_units():
                 if gc.can_load(unit.id, robot.id):
