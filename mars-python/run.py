@@ -6,35 +6,6 @@ import time
 
 import os
 
-
-def get_neighbours(pos, map):
-    list = set()
-    for i in range(-1, 2):
-        for j in range(-1, 2):
-            if i + pos[0] >= map.width or i + pos[0] < 0 or j + pos[1] >= map.height or j + pos[1] < 0 or (
-                    j == 0 and i == 0):
-                continue
-            list.add((pos[0] + i, pos[1] + j))
-    return list
-
-
-def bfs(start, map, filter, condition):
-    visited, queue = set(), [start]
-    while queue:
-        v = queue.pop(0)
-        if condition(v, map):
-            return bc.MapLocation(map.planet, v[0], v[1])
-        if v not in visited and filter(v, map):
-            visited.add(v)
-            queue.extend(get_neighbours(v, map) - visited)
-    return None
-
-
-def is_accessible(loc, map):
-    l = bc.MapLocation(map.planet, loc[0], loc[1])
-    return map.is_passable_terrain_at(l)
-
-
 print(os.getcwd())
 
 print("pystarting")
@@ -70,6 +41,7 @@ gc.queue_research(bc.UnitType.Knight)
 gc.queue_research(bc.UnitType.Ranger)
 gc.queue_research(bc.UnitType.Mage)
 gc.queue_research(bc.UnitType.Healer)
+
 
 my_team = gc.team()
 
@@ -129,7 +101,8 @@ while True:
 
             d = random.choice(directions)
 
-            if gc.round() > last_rocket_round + 100 and gc.karbonite() > bc.UnitType.Rocket.blueprint_cost() and gc.can_blueprint(unit.id, bc.UnitType.Rocket, d):
+            if gc.round() > last_rocket_round + 100 and gc.karbonite() > bc.UnitType.Rocket.blueprint_cost() and gc.can_blueprint(
+                    unit.id, bc.UnitType.Rocket, d):
                 gc.blueprint(unit.id, bc.UnitType.Rocket, d)
                 last_rocket_round = gc.round()
                 print('Blueprinted a rocket!')
@@ -161,7 +134,8 @@ while True:
                         continue
 
             # or, try to build a factory:
-            if gc.karbonite() > bc.UnitType.Factory.blueprint_cost() and gc.can_blueprint(unit.id, bc.UnitType.Factory, d):
+            if gc.karbonite() > bc.UnitType.Factory.blueprint_cost() and gc.can_blueprint(unit.id, bc.UnitType.Factory,
+                                                                                          d):
                 gc.blueprint(unit.id, bc.UnitType.Factory, d)
             # and if that fails, try to move
             elif gc.is_move_ready(unit.id) and gc.can_move(unit.id, d):
