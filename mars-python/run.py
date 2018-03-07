@@ -5,6 +5,36 @@ import traceback
 import time
 
 import os
+
+
+def get_neighbours(pos, map):
+    list = set()
+    for i in range(-1, 2):
+        for j in range(-1, 2):
+            if i + pos[0] >= map.width or i + pos[0] < 0 or j + pos[1] >= map.height or j + pos[1] < 0 or (
+                    j == 0 and i == 0):
+                continue
+            list.add((pos[0] + i, pos[1] + j))
+    return list
+
+
+def bfs(start, map, filter, condition):
+    visited, queue = set(), [start]
+    while queue:
+        v = queue.pop(0)
+        if condition(v, map):
+            return bc.MapLocation(map.planet, v[0], v[1])
+        if v not in visited and filter(v, map):
+            visited.add(v)
+            queue.extend(get_neighbours(v, map) - visited)
+    return None
+
+
+def is_accessible(loc, map):
+    l = bc.MapLocation(map.planet, loc[0], loc[1])
+    return map.is_passable_terrain_at(l)
+
+
 print(os.getcwd())
 
 print("pystarting")
