@@ -245,10 +245,10 @@ def knight_logic(unit):
                                                            unit.attack_range()) if i.team != my_team]
 
     visible_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(),
-                                                        unit.vision_range()) if i.team != my_team]
+                                                        unit.vision_range) if i.team != my_team]
 
     if len(attackable_enemies) > 0:
-        if gc.is_attack_ready(unit):
+        if gc.is_attack_ready(unit.id):
 
             # Attack one with lowest health pool to lower incoming dmg
             adepts = np.argsort([i.health for i in attackable_enemies if distance(unit, i) > 10])
@@ -261,7 +261,7 @@ def knight_logic(unit):
     elif len(visible_enemies) > 0:
         closest = np.argmin([distance(unit, i) for i in visible_enemies])
 
-        direction = unit.location.map_location.direction_to(visible_enemies[closest])
+        direction = unit.location.map_location().direction_to(visible_enemies[closest].location.map_location())
 
         if gc.can_javelin(unit.id, visible_enemies[closest].id) and gc.is_javelin_ready(unit.id):
             gc.javelin(unit.id, visible_enemies[closest].id)
