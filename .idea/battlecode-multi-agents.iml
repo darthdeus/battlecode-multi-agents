@@ -5,8 +5,9 @@
       <sourceFolder url="file://$MODULE_DIR$/battlecode/python" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/mars-python" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/_smart-python_with_BFS" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/_smart-python" isTestSource="false" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.6.4 (C:\Program Files (x86)\Microsoft Visual Studio\Shared\Python36_64\python.exe)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.6" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="TestRunnerService">

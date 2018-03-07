@@ -1,2 +1,2 @@
 set PYTHONPATH=..\battlecode\python
-python run.py
+py -3 run.py

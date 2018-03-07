@@ -3,6 +3,7 @@ import random
 import sys
 import traceback
 import numpy as np
+from functools import wraps
 import time
 # from itertools import filter
 
@@ -58,8 +59,38 @@ rocket_count = 0
 factory_priority = [bc.UnitType.Worker, bc.UnitType.Knight, bc.UnitType.Ranger]
 
 
+def distance(unit_a, unit_b):
+    return unit_a.location.map_location().distance_squared_to(unit_b.location.map_location())
+
+
+def random_roam(unit):
+    d = random.choice(directions)
+    if gc.is_move_ready(unit.id) and gc.can_move(unit.id, d):
+        gc.move_robot(unit.id, d)
+    return
+
+
 def first_dir_matching(pred):
     return next(filter(pred, directions), None)
+
+
+def wrap_on_map_only(f):
+    @wraps(f)
+    def wrapper(unit):
+        if unit.location.is_in_garrison() or unit.location.is_in_space():
+            return
+
+        f(unit)
+
+    return wrapper
+
+
+def sense_enemies(unit):
+    def sense_nearby(unit, radius):
+        return [i for i in gc.sense_nearby_units(unit.location.map_location(), radius) if i.team != my_team]
+
+    return (sense_nearby(unit, unit.attack_range()),
+            sense_nearby(unit, unit.vision_range))
 
 
 def factory_logic(unit):
@@ -81,40 +112,40 @@ def factory_logic(unit):
         return
 
 
+@wrap_on_map_only
 def rocket_logic(unit):
     if unit.location.is_on_planet(bc.Planet.Earth):
         if len(unit.structure_garrison()) > (750 - gc.round()) / 150:
-            marsLocation = bc.MapLocation(bc.Planet.Mars, random.randint(0, 20), random.randint(0, 20))
-            if gc.can_launch_rocket(unit.id, marsLocation):
-                gc.launch_rocket(unit.id, marsLocation)
-                print('MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM rocket launched!')
+            mars = gc.starting_map(gc.planet().Mars)
+            w, h = mars.width, mars.height
+
+            for x in range(w):
+                for y in range(h):
+                    mars_location = bc.MapLocation(bc.Planet.Mars, x, y)
+                    if gc.can_launch_rocket(unit.id, mars_location):
+                        gc.launch_rocket(unit.id, mars_location)
+                        return
+
+            # marsLocation = bc.MapLocation(bc.Planet.Mars, random.randint(0, 20), random.randint(0, 20))
+            # if gc.can_launch_rocket(unit.id, marsLocation):
+            #     gc.launch_rocket(unit.id, marsLocation)
         else:
             for robot in gc.my_units():
                 if gc.can_load(unit.id, robot.id):
                     gc.load(unit.id, robot.id)
-                    print('MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM robot loaded to a rocket!')
     else:
         for direction in directions:
             if gc.can_unload(unit.id, direction):
                 gc.unload(unit.id, direction)
-                print('MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM unloaded a rocket!')
                 break
-
-
-def wrap_on_map_only(f):
-    def wrapper(unit):
-        if unit.location.is_on_map():
-            f(unit)
-
-    return wrapper
 
 
 def try_build(unit, type):
     if gc.karbonite() > type.blueprint_cost():
         valid_dir = first_dir_matching(lambda dir: gc.can_blueprint(unit.id, type, dir))
+
         if valid_dir is not None:
             if type == bc.UnitType.Rocket:
-                print("!!!!!!!!!!!!Building a rocket!!!!!!!!!!!!")
                 global rocket_count
                 rocket_count += 1
             gc.blueprint(unit.id, type, valid_dir)
@@ -125,6 +156,7 @@ def try_build(unit, type):
     return False
 
 
+@wrap_on_map_only
 def worker_logic(unit):
     # Build if we can
     for other in gc.sense_nearby_units(unit.location.map_location(), 2):
@@ -140,38 +172,19 @@ def worker_logic(unit):
     # Or harvest
     available_dir = first_dir_matching(lambda dir: gc.can_harvest(unit.id, dir))
     if available_dir is not None and unit.unit_type == bc.UnitType.Worker:
-        print('Harvested karbonite!')
         gc.harvest(unit.id, available_dir)
         return
 
     try_moving(unit)
 
 
-def distance(unit_a, unit_b):
-    return unit_a.location.map_location().distance_squared_to(unit_b.location.map_location())
-
-
-def random_roam(unit):
-    d = random.choice(directions)
-    if gc.is_move_ready(unit.id) and gc.can_move(unit.id, d):
-        gc.move_robot(unit.id, d)
-    return
-
-
+@wrap_on_map_only
 def mage_logic(unit):
-    if unit.location.is_in_garrison() or unit.location.is_in_space():
-        return
-
-    attackable_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(),
-                                   unit.attack_range()) if i.team != my_team]
-
-    visible_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(),
-                                   unit.vision_range()) if i.team != my_team]
+    attackable_enemies, visible_enemies = sense_enemies(unit)
 
     if len(attackable_enemies) > 0:
         if gc.is_attack_ready(unit):
-
-            adepts = adepts = np.argsort([i.health for i in attackable_enemies if distance(unit, i) > 10])
+            adepts = np.argsort([i.health for i in attackable_enemies if distance(unit, i) > 10])
             for adept in list(adepts):
                 if gc.can_attack(unit.id, adept.id):
                     gc.attack(unit.id, adept.id)
@@ -179,11 +192,9 @@ def mage_logic(unit):
         return
 
     elif len(visible_enemies) > 0:
-        closest = np.argmin([distance(unit, i)
-                               for i in visible_enemies])
-
-
+        closest = np.argmin([distance(unit, i) for i in visible_enemies])
         direction = unit.location.map_location.direction_to(visible_enemies[closest])
+
         if gc.is_move_ready(unit.id) and gc.can_move(unit.id, direction):
             gc.move_robot(unit.id, direction)
         return
@@ -193,18 +204,12 @@ def mage_logic(unit):
         return
 
 
+@wrap_on_map_only
 def ranger_logic(unit):
-
-    if unit.location.is_in_garrison() or unit.location.is_in_space():
-        return
-
-    attackable_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(), unit.attack_range()) if i.team != my_team]
-
-    visible_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(), unit.vision_range) if i.team != my_team]
+    attackable_enemies, visible_enemies = sense_enemies(unit)
 
     if len(attackable_enemies) > 0:
         if gc.is_attack_ready(unit.id):
-
             can_attack_enemies = [i for i in attackable_enemies if distance(unit,i) > 10]
             too_close_enemies = [i for i in attackable_enemies if distance(unit,i) <= 10]
 
@@ -221,14 +226,15 @@ def ranger_logic(unit):
                 possibilities = gc.all_locations_within(unit.location.map_location(), radius_squared=1)
                 evaluation = [i.distance_squared_to(too_close_enemies[adepts[-1]].location.map_location()) for i in possibilities]
                 best_direction = unit.location.map_location().direction_to(possibilities[int(np.argmax([evaluation]))])
+
                 if gc.is_move_ready(unit.id) and gc.can_move(unit.id, best_direction):
                     gc.move_robot(unit.id, best_direction)
         return
 
     elif len(visible_enemies) > 0:
-        closest = np.argmin([distance(unit, i)
-                               for i in visible_enemies])
-        ### Az bude search s distance heuristikou, tak zlepsit. Nyni asi jen vzdusnou carou ###
+        closest = np.argmin([distance(unit, i) for i in visible_enemies])
+
+        # TODO: Az bude search s distance heuristikou, tak zlepsit. Nyni asi jen vzdusnou carou
         direction = unit.location.map_location().direction_to(visible_enemies[closest].location.map_location())
         if gc.is_move_ready(unit.id) and gc.can_move(unit.id, direction):
             gc.move_robot(unit.id, direction)
@@ -238,16 +244,10 @@ def ranger_logic(unit):
         random_roam(unit)
         return
 
+
+@wrap_on_map_only
 def knight_logic(unit):
-
-    if unit.location.is_in_garrison() or unit.location.is_in_space():
-        return
-
-    attackable_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(),
-                                                           unit.attack_range()) if i.team != my_team]
-
-    visible_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(),
-                                                        unit.vision_range) if i.team != my_team]
+    attackable_enemies, visible_enemies = sense_enemies(unit)
 
     if len(attackable_enemies) > 0:
         if gc.is_attack_ready(unit.id):
@@ -274,45 +274,32 @@ def knight_logic(unit):
     return
 
 
-
-
+@wrap_on_map_only
 def healer_logic(unit):
-
-    if unit.location.is_in_garrison() or unit.location.is_in_space():
-        return
-
-    teamates = [i for i in gc.sense_nearby_units(unit.location.map_location(),
+    teammates = [i for i in gc.sense_nearby_units(unit.location.map_location(),
                                                            unit.attack_range()) if i.team == my_team]
 
-    for mate in teamates:
+    for mate in teammates:
         if mate.health < mate.max_health - 10 and gc.is_heal_ready(unit.id):
             gc.heal(unit.id, mate.id)
             return
 
-    out_of_range_teamates = [i for i in gc.sense_nearby_units(unit.location.map_location(),
+    out_of_range_teammates = [i for i in gc.sense_nearby_units(unit.location.map_location(),
                                                  unit.attack_range()) if i.team == my_team]
     if gc.is_move_ready(unit.id):
         closest = np.argmin([distance(unit, i)
-                             for i in out_of_range_teamates])
+                             for i in out_of_range_teammates])
 
-        direction = unit.location.map_location.direction_to(out_of_range_teamates[closest])
+        direction = unit.location.map_location.direction_to(out_of_range_teammates[closest])
 
-        ## zatim vzdusnou carou
+        # TODO: zatim vzdusnou carou
         if gc.is_move_ready(unit.id) and gc.can_move(unit.id, direction):
             gc.move_robot(unit.id, direction)
 
-        if len(out_of_range_teamates) == 0:
+        if len(out_of_range_teammates) == 0:
             random_roam(unit)
     return
 
-
-def combat_logic(unit):
-    for other in gc.sense_nearby_units(unit.location.map_location(), 2):
-        if other.team != my_team and gc.is_attack_ready(unit.id) and gc.can_attack(unit.id, other.id):
-            gc.attack(unit.id, other.id)
-            return
-
-    try_moving(unit)
 
 def try_moving(unit):
     if gc.is_move_ready(unit.id):
@@ -335,55 +322,23 @@ def try_moving(unit):
 
 unit_type_callbacks = {
     bc.UnitType.Factory: factory_logic,
-    bc.UnitType.Rocket: wrap_on_map_only(rocket_logic),
-    bc.UnitType.Worker: wrap_on_map_only(worker_logic),
-    bc.UnitType.Knight: wrap_on_map_only(knight_logic),
-    bc.UnitType.Ranger: wrap_on_map_only(ranger_logic),
-    bc.UnitType.Mage:   wrap_on_map_only(mage_logic),
-    bc.UnitType.Healer: wrap_on_map_only(healer_logic),
+    bc.UnitType.Rocket: rocket_logic,
+    bc.UnitType.Worker: worker_logic,
+    bc.UnitType.Knight: knight_logic,
+    bc.UnitType.Ranger: ranger_logic,
+    bc.UnitType.Mage:   mage_logic,
+    bc.UnitType.Healer: healer_logic,
 }
 
 while True:
-    # We only support Python 3, which means brackets around print()
-    # print('pyround:', gc.round(), 'time left:', gc.get_time_left_ms(), 'ms')
-
     # frequent try/catches are a good idea
     try:
         # walk through our units:
         for unit in gc.my_units():
             if unit.unit_type in unit_type_callbacks.keys():
                 unit_type_callbacks[unit.unit_type](unit)
-
             else:
                 print("Unhandled unit type: {}".format(unit.unit_type))
-            #
-            # d = random.choice(directions)
-            #
-            # # first, let's look for nearby blueprints to work on
-            # location = unit.location
-            # if location.is_on_map():
-            #     nearby = gc.sense_nearby_units(location.map_location(), 2)
-            #     for other in nearby:
-            #         if unit.unit_type == bc.UnitType.Worker and gc.can_build(unit.id, other.id):
-            #             gc.build(unit.id, other.id)
-            #             print('Built a factory!')
-            #             # move onto the next unit
-            #             continue
-            #
-            #         available_dir = next(filter(lambda dir: gc.can_harvest(unit.id, dir), directions), None)
-            #         if available_dir is not None and unit.unit_type == bc.UnitType.Worker:
-            #             print('Harvested karbonite!')
-            #             gc.harvest(unit.id, available_dir)
-            #             continue
-            #
-            #         if other.team != my_team and gc.is_attack_ready(unit.id) and gc.can_attack(unit.id, other.id):
-            #             print('Attacked a thing!')
-            #             gc.attack(unit.id, other.id)
-            #             continue
-            #
-            # # and if that fails, try to move
-            # elif gc.is_move_ready(unit.id) and gc.can_move(unit.id, d):
-            #     gc.move_robot(unit.id, d)
 
     except Exception as e:
         print('Error:', e)
