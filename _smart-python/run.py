@@ -55,7 +55,7 @@ my_team = gc.team()
 
 rocket_count = 0
 
-factory_priority = [bc.UnitType.Worker, bc.UnitType.Knight]
+factory_priority = [bc.UnitType.Worker, bc.UnitType.Knight, bc.UnitType.Ranger]
 
 
 def first_dir_matching(pred):
@@ -68,7 +68,7 @@ def factory_logic(unit):
         if unload_dir is not None:
             gc.unload(unit.id, unload_dir)
 
-    type = factory_priority[random.randint(0, 1)]
+    type = factory_priority[random.randint(0, 1, 2)]
 
     global rocket_count
     rocket_level = gc.research_info().get_level(bc.UnitType.Rocket)
