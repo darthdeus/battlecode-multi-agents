@@ -198,27 +198,29 @@ def ranger_logic(unit):
     if unit.location.is_in_garrison() or unit.location.is_in_space():
         return
 
-    attackable_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(),
-                                   unit.attack_range()) if i.team != my_team]
+    attackable_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(), unit.attack_range()) if i.team != my_team]
 
-    visible_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(),
-                                   unit.vision_range()) if i.team != my_team]
+    visible_enemies = [i for i in gc.sense_nearby_units(unit.location.map_location(), unit.vision_range) if i.team != my_team]
 
     if len(attackable_enemies) > 0:
-        if gc.is_attack_ready(unit):
+        if gc.is_attack_ready(unit.id):
+
+            can_attack_enemies = [i for i in attackable_enemies if distance(unit,i) > 10]
+            too_close_enemies = [i for i in attackable_enemies if distance(unit,i) <= 10]
 
             # Try attack the closest, but not closer than 10
-            adepts = np.argsort([distance(unit, i) for i in attackable_enemies if distance(unit, i) > 10])
+            adepts = np.argsort([distance(unit, i) for i in can_attack_enemies])
             for adept in list(adepts):
-                if gc.can_attack(unit.id, adept.id):
-                    gc.attack(unit.id, adept.id)
+                if gc.can_attack(unit.id, can_attack_enemies[adept].id):
+                    gc.attack(unit.id, can_attack_enemies[adept].id)
                     break
 
             # Every enemy is too close, so I cannot attack anything!
-            if len(adepts) == 0:
-                possibilities = gc.all_locations_within(unit.location.map_location, radius_squared=1)
-                evaluation = [i.distance_squared_to(adepts[-1]) for i in possibilities]
-                best_direction = unit.location.map_location.direction_to(possibilities[int(np.argmax([evaluation]))])
+            if len(can_attack_enemies) == 0:
+                adepts = np.argsort([distance(unit, i) for i in too_close_enemies])
+                possibilities = gc.all_locations_within(unit.location.map_location(), radius_squared=1)
+                evaluation = [i.distance_squared_to(too_close_enemies[adepts[-1]].location.map_location()) for i in possibilities]
+                best_direction = unit.location.map_location().direction_to(possibilities[int(np.argmax([evaluation]))])
                 if gc.is_move_ready(unit.id) and gc.can_move(unit.id, best_direction):
                     gc.move_robot(unit.id, best_direction)
         return
@@ -227,7 +229,7 @@ def ranger_logic(unit):
         closest = np.argmin([distance(unit, i)
                                for i in visible_enemies])
         ### Az bude search s distance heuristikou, tak zlepsit. Nyni asi jen vzdusnou carou ###
-        direction = unit.location.map_location.direction_to(visible_enemies[closest])
+        direction = unit.location.map_location().direction_to(visible_enemies[closest].location.map_location())
         if gc.is_move_ready(unit.id) and gc.can_move(unit.id, direction):
             gc.move_robot(unit.id, direction)
         return
