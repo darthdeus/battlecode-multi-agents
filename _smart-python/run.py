@@ -190,7 +190,7 @@ def mage_logic(unit):
 
     elif len(visible_enemies) > 0:
         closest = np.argmin([distance(unit, i) for i in visible_enemies])
-        direction = unit.location.map_location.direction_to(visible_enemies[closest])
+        direction = unit.location.map_location.direction_to(visible_enemies[closest].location.map_location())
 
         if gc.is_move_ready(unit.id) and gc.can_move(unit.id, direction):
             gc.move_robot(unit.id, direction)
@@ -287,7 +287,7 @@ def healer_logic(unit):
         closest = np.argmin([distance(unit, i)
                              for i in out_of_range_teammates])
 
-        direction = unit.location.map_location.direction_to(out_of_range_teammates[closest])
+        direction = unit.location.map_location.direction_to(out_of_range_teammates[closest].location.map_location())
 
         # TODO: zatim vzdusnou carou
         if gc.is_move_ready(unit.id) and gc.can_move(unit.id, direction):
