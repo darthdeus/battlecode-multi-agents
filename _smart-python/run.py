@@ -183,8 +183,8 @@ def mage_logic(unit):
         if gc.is_attack_ready(unit):
             adepts = np.argsort([i.health for i in attackable_enemies if distance(unit, i) > 10])
             for adept in list(adepts):
-                if gc.can_attack(unit.id, adept.id):
-                    gc.attack(unit.id, adept.id)
+                if gc.can_attack(unit.id, attackable_enemies[adept].id):
+                    gc.attack(unit.id, attackable_enemies[adept].id)
                     break
         return
 
